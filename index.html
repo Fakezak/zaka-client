@@ -13,13 +13,22 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a2e;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             color: #fff;
             overflow: hidden;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            text-align: center;
         }
 
         #loading {
@@ -30,8 +39,8 @@
         .spinner {
             width: 50px;
             height: 50px;
-            border: 3px solid #16213e;
-            border-top: 3px solid #e94560;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #fff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -52,10 +61,10 @@
             to { opacity: 0; }
         }
 
-        #welcome-message {
+        #welcome-message, #enjoy-message {
             text-align: center;
             animation: fadeIn 0.5s ease-in;
-            font-size: 2rem;
+            font-size: 2.5rem;
             font-weight: bold;
         }
 
@@ -68,32 +77,40 @@
         }
 
         #enjoy-message {
-            text-align: center;
-            animation: fadeIn 0.5s ease-in;
             font-size: 3rem;
-            font-weight: bold;
-            color: #e94560;
+            background: linear-gradient(45deg, #ff0000, #00ff00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         #authenticated-state {
-            text-align: center;
+            text-align: left;
             animation: fadeIn 1s ease-in;
         }
 
         .user-info {
-            background: #16213e;
+            background: rgba(255, 255, 255, 0.1);
             padding: 20px;
             border-radius: 10px;
             margin: 20px 0;
         }
 
+        .info-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+
         .token-display {
             font-family: monospace;
-            background: #0f3460;
+            background: rgba(0, 0, 0, 0.3);
             padding: 10px;
             border-radius: 5px;
             word-break: break-all;
             margin-top: 10px;
+            font-size: 0.9rem;
         }
 
         .hidden {
@@ -102,53 +119,75 @@
 
         .error-message {
             color: #ff4444;
-            background: #2d1b1b;
+            background: rgba(255, 0, 0, 0.1);
             padding: 15px;
             border-radius: 8px;
             margin: 20px;
             text-align: center;
+            border: 1px solid #ff4444;
+        }
+
+        .success-badge {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <div id="loading">
-        <div class="spinner"></div>
-        <p>Connecting to Zaka servers...</p>
-    </div>
+    <div class="container">
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Connecting to Zaka servers...</p>
+        </div>
 
-    <div id="welcome-message" class="hidden">
-        <span class="main-text" id="welcome-text"></span>
-        <span class="emoji">:)</span>
-    </div>
+        <div id="welcome-message" class="hidden">
+            <span class="main-text" id="welcome-text"></span>
+            <span class="emoji">:)</span>
+        </div>
 
-    <div id="enjoy-message" class="hidden">
-        <span class="main-text">Enjoy</span>
-        <span class="emoji">:)</span>
-    </div>
+        <div id="enjoy-message" class="hidden">
+            Enjoy <span class="emoji">:)</span>
+        </div>
 
-    <div id="authenticated-state" class="hidden">
-        <h2>Zaka Project - Authenticated</h2>
-        <div class="user-info">
-            <p><strong>Account ID:</strong> <span id="account-id"></span></p>
-            <p><strong>Request ID:</strong> <span id="request-id"></span></p>
-            <p><strong>Session Expires:</strong> <span id="session-expiry"></span></p>
-            <div class="token-display">
-                <strong>Session Token:</strong><br>
-                <span id="session-token"></span>
+        <div id="authenticated-state" class="hidden">
+            <span class="success-badge">✓ Authenticated</span>
+            <h2>Zaka Project</h2>
+            <div class="user-info">
+                <div class="info-item">
+                    <strong>Account ID:</strong><br>
+                    <span id="account-id"></span>
+                </div>
+                <div class="info-item">
+                    <strong>Request ID:</strong><br>
+                    <span id="request-id"></span>
+                </div>
+                <div class="info-item">
+                    <strong>Session Expires:</strong><br>
+                    <span id="session-expiry"></span>
+                </div>
+                <div class="token-display">
+                    <strong>Session Token:</strong><br>
+                    <span id="session-token"></span>
+                </div>
             </div>
         </div>
+
+        <div id="error-container" class="error-message hidden"></div>
     </div>
 
-    <div id="error-container" class="error-message hidden"></div>
-
     <script>
-        // Client configuration
+        // Client configuration for Vercel deployment
         const CLIENT_CONFIG = {
             clientId: 'zaka-ff-client-v1',
-            clientSecret: 'zaka_ff_2024_secure_key', // In production, this should be in environment variables
+            clientSecret: 'zaka_ff_2024_secure_key',
             platform: 'freefire',
             version: '1.0.0',
-            apiEndpoint: 'https://zaka.example.com/api/auth/session',
+            apiEndpoint: '/api/auth/session', // Relative URL for Vercel
             signatureHeader: 'x-zaka-signature',
             timestampHeader: 'x-zaka-timestamp',
             nonceHeader: 'x-zaka-nonce'
@@ -163,6 +202,9 @@
 
         // Generate UUID v4 (client-side)
         function generateUUID() {
+            if (crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
             return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
                 const r = Math.random() * 16 | 0;
                 const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -228,7 +270,7 @@
             };
 
             // Generate signature
-            const url = new URL(CLIENT_CONFIG.apiEndpoint);
+            const url = new URL(CLIENT_CONFIG.apiEndpoint, window.location.origin);
             const signature = await generateSignature(
                 'POST',
                 url.pathname,
@@ -250,8 +292,8 @@
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Authentication failed');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}`);
             }
 
             const data = await response.json();
@@ -264,13 +306,13 @@
         }
 
         // Display welcome message
-        function displayWelcomeMessage(accountId) {
+        function displayWelcomeMessage(sessionData) {
             const loadingElement = document.getElementById('loading');
             const welcomeElement = document.getElementById('welcome-message');
             const welcomeText = document.getElementById('welcome-text');
             
             loadingElement.classList.add('hidden');
-            welcomeText.textContent = `Welcome user${accountId} to zaka project `;
+            welcomeText.textContent = `Welcome user${sessionData.account_id} to zaka project `;
             welcomeElement.classList.remove('hidden');
             
             // After 5 seconds, transition to "Enjoy :)"
@@ -280,15 +322,16 @@
                 
                 setTimeout(() => {
                     welcomeElement.classList.add('hidden');
-                    displayEnjoyMessage();
+                    displayEnjoyMessage(sessionData);
                 }, 500);
             }, 5000);
         }
 
         // Display "Enjoy :)" message
-        function displayEnjoyMessage() {
+        function displayEnjoyMessage(sessionData) {
             const enjoyElement = document.getElementById('enjoy-message');
             enjoyElement.classList.remove('hidden');
+            enjoyElement.style.opacity = '1';
             
             // After 2 seconds, transition to authenticated state
             setTimeout(() => {
@@ -297,7 +340,7 @@
                 
                 setTimeout(() => {
                     enjoyElement.classList.add('hidden');
-                    displayAuthenticatedState();
+                    displayAuthenticatedState(sessionData);
                 }, 500);
             }, 2000);
         }
@@ -328,28 +371,19 @@
         async function init() {
             try {
                 const sessionData = await authenticateWithZaka();
-                displayWelcomeMessage(sessionData.account_id);
-                
-                // Store session data for later use
-                sessionStorage.setItem('zaka_session', JSON.stringify(sessionData));
-                
-                // Pass session data to displayAuthenticatedState
-                window.sessionData = sessionData;
-                
-                // Modify displayAuthenticatedState to use stored session data
-                const originalDisplay = displayAuthenticatedState;
-                displayAuthenticatedState = function() {
-                    originalDisplay(window.sessionData);
-                };
-                
+                displayWelcomeMessage(sessionData);
             } catch (error) {
                 console.error('Authentication error:', error);
                 showError(error.message);
             }
         }
 
-        // Start the client
-        init();
+        // Start the client when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
