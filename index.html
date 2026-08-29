@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zaka Project - Free Fire Community</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #loading {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #16213e;
+            border-top: 3px solid #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        #welcome-message {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .main-text {
+            color: #ff0000;
+        }
+
+        .emoji {
+            color: #00ff00;
+        }
+
+        #enjoy-message {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+            font-size: 3rem;
+            font-weight: bold;
+            color: #e94560;
+        }
+
+        #authenticated-state {
+            text-align: center;
+            animation: fadeIn 1s ease-in;
+        }
+
+        .user-info {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .token-display {
+            font-family: monospace;
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 5px;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error-message {
+            color: #ff4444;
+            background: #2d1b1b;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Connecting to Zaka servers...</p>
+    </div>
+
+    <div id="welcome-message" class="hidden">
+        <span class="main-text" id="welcome-text"></span>
+        <span class="emoji">:)</span>
+    </div>
+
+    <div id="enjoy-message" class="hidden">
+        <span class="main-text">Enjoy</span>
+        <span class="emoji">:)</span>
+    </div>
+
+    <div id="authenticated-state" class="hidden">
+        <h2>Zaka Project - Authenticated</h2>
+        <div class="user-info">
+            <p><strong>Account ID:</strong> <span id="account-id"></span></p>
+            <p><strong>Request ID:</strong> <span id="request-id"></span></p>
+            <p><strong>Session Expires:</strong> <span id="session-expiry"></span></p>
+            <div class="token-display">
+                <strong>Session Token:</strong><br>
+                <span id="session-token"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="error-container" class="error-message hidden"></div>
+
+    <script>
+        // Client configuration
+        const CLIENT_CONFIG = {
+            clientId: 'zaka-ff-client-v1',
+            clientSecret: 'zaka_ff_2024_secure_key', // In production, this should be in environment variables
+            platform: 'freefire',
+            version: '1.0.0',
+            apiEndpoint: 'https://zaka.example.com/api/auth/session',
+            signatureHeader: 'x-zaka-signature',
+            timestampHeader: 'x-zaka-timestamp',
+            nonceHeader: 'x-zaka-nonce'
+        };
+
+        // Generate secure random nonce
+        function generateNonce() {
+            const array = new Uint8Array(16);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Generate UUID v4 (client-side)
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Generate HMAC signature
+        async function generateSignature(method, url, timestamp, nonce, body) {
+            const payload = `${method}${url}${timestamp}${nonce}${JSON.stringify(body)}`;
+            
+            const encoder = new TextEncoder();
+            const keyData = encoder.encode(CLIENT_CONFIG.clientSecret);
+            const payloadData = encoder.encode(payload);
+            
+            const key = await crypto.subtle.importKey(
+                'raw',
+                keyData,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+            
+            const signature = await crypto.subtle.sign(
+                'HMAC',
+                key,
+                payloadData
+            );
+            
+            return Array.from(new Uint8Array(signature))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        // Get account_id from URL parameters or localStorage
+        function getAccountId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const accountId = urlParams.get('account_id') || localStorage.getItem('zaka_account_id');
+            
+            if (accountId) {
+                localStorage.setItem('zaka_account_id', accountId);
+                return accountId;
+            }
+            
+            // For demo purposes, generate a random account ID
+            const demoAccountId = 'FF_' + Math.random().toString(36).substring(2, 10).toUpperCase();
+            localStorage.setItem('zaka_account_id', demoAccountId);
+            return demoAccountId;
+        }
+
+        // Authenticate with Zaka server
+        async function authenticateWithZaka() {
+            const accountId = getAccountId();
+            const requestId = generateUUID();
+            const timestamp = Date.now();
+            const nonce = generateNonce();
+            
+            const requestBody = {
+                request_id: requestId,
+                account_id: accountId,
+                platform: CLIENT_CONFIG.platform,
+                client_version: CLIENT_CONFIG.version
+            };
+
+            // Generate signature
+            const url = new URL(CLIENT_CONFIG.apiEndpoint);
+            const signature = await generateSignature(
+                'POST',
+                url.pathname,
+                timestamp,
+                nonce,
+                requestBody
+            );
+
+            // Send request to server
+            const response = await fetch(CLIENT_CONFIG.apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [CLIENT_CONFIG.signatureHeader]: signature,
+                    [CLIENT_CONFIG.timestampHeader]: timestamp.toString(),
+                    [CLIENT_CONFIG.nonceHeader]: nonce
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Authentication failed');
+            }
+
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error('Invalid server response');
+            }
+
+            return data.data;
+        }
+
+        // Display welcome message
+        function displayWelcomeMessage(accountId) {
+            const loadingElement = document.getElementById('loading');
+            const welcomeElement = document.getElementById('welcome-message');
+            const welcomeText = document.getElementById('welcome-text');
+            
+            loadingElement.classList.add('hidden');
+            welcomeText.textContent = `Welcome user${accountId} to zaka project `;
+            welcomeElement.classList.remove('hidden');
+            
+            // After 5 seconds, transition to "Enjoy :)"
+            setTimeout(() => {
+                welcomeElement.style.animation = 'fadeOut 0.5s ease-out';
+                welcomeElement.style.opacity = '0';
+                
+                setTimeout(() => {
+                    welcomeElement.classList.add('hidden');
+                    displayEnjoyMessage();
+                }, 500);
+            }, 5000);
+        }
+
+        // Display "Enjoy :)" message
+        function displayEnjoyMessage() {
+            const enjoyElement = document.getElementById('enjoy-message');
+            enjoyElement.classList.remove('hidden');
+            
+            // After 2 seconds, transition to authenticated state
+            setTimeout(() => {
+                enjoyElement.style.animation = 'fadeOut 0.5s ease-out';
+                enjoyElement.style.opacity = '0';
+                
+                setTimeout(() => {
+                    enjoyElement.classList.add('hidden');
+                    displayAuthenticatedState();
+                }, 500);
+            }, 2000);
+        }
+
+        // Display authenticated state
+        function displayAuthenticatedState(sessionData) {
+            const authenticatedElement = document.getElementById('authenticated-state');
+            
+            document.getElementById('account-id').textContent = sessionData.account_id;
+            document.getElementById('request-id').textContent = sessionData.request_id;
+            document.getElementById('session-token').textContent = sessionData.session_token;
+            document.getElementById('session-expiry').textContent = new Date(Date.now() + (sessionData.expires_in * 1000)).toLocaleString();
+            
+            authenticatedElement.classList.remove('hidden');
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorElement = document.getElementById('error-container');
+            errorElement.textContent = `Error: ${message}`;
+            errorElement.classList.remove('hidden');
+            
+            const loadingElement = document.getElementById('loading');
+            loadingElement.classList.add('hidden');
+        }
+
+        // Initialize client
+        async function init() {
+            try {
+                const sessionData = await authenticateWithZaka();
+                displayWelcomeMessage(sessionData.account_id);
+                
+                // Store session data for later use
+                sessionStorage.setItem('zaka_session', JSON.stringify(sessionData));
+                
+                // Pass session data to displayAuthenticatedState
+                window.sessionData = sessionData;
+                
+                // Modify displayAuthenticatedState to use stored session data
+                const originalDisplay = displayAuthenticatedState;
+                displayAuthenticatedState = function() {
+                    originalDisplay(window.sessionData);
+                };
+                
+            } catch (error) {
+                console.error('Authentication error:', error);
+                showError(error.message);
+            }
+        }
+
+        // Start the client
+        init();
+    </script>
+</body>
+</html>
